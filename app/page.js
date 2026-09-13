@@ -35,12 +35,6 @@ export default function HomePage() {
         <p className="mt-2 text-gray-600">
           บะหมี่ร้อน ๆ ส่งตรงถึงบ้านคุณ เลือกเมนูที่ชอบแล้วกดสั่งได้เลย
         </p>
-        <Link
-          href="/order"
-          className="mt-4 inline-block rounded bg-orange-600 px-6 py-2 font-medium text-white hover:bg-orange-700"
-        >
-          สั่งเลย
-        </Link>
       </div>
 
       {errorMsg && (
@@ -58,7 +52,7 @@ export default function HomePage() {
           {menuItems.map((item) => (
             <div
               key={item.id}
-              className="rounded-lg border bg-white p-4 shadow-sm"
+              className="flex flex-col rounded-lg border bg-white p-4 shadow-sm"
             >
               <div className="mb-1 flex items-center justify-between">
                 <h2 className="font-semibold">{item.name}</h2>
@@ -73,7 +67,7 @@ export default function HomePage() {
                   {item.description}
                 </p>
               )}
-              <div className="flex items-center justify-between">
+              <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm text-gray-500">
                   {item.spice_level || ""}
                 </span>
@@ -81,6 +75,13 @@ export default function HomePage() {
                   ฿{item.price}
                 </span>
               </div>
+              {/* ปุ่มสั่งเมนูนี้ - ส่ง id ของเมนูไปหน้า /order ผ่าน query string */}
+              <Link
+                href={`/order?menu=${item.id}`}
+                className="mt-auto rounded bg-orange-600 px-4 py-2 text-center text-sm font-medium text-white hover:bg-orange-700"
+              >
+                สั่งเมนูนี้
+              </Link>
             </div>
           ))}
         </div>
