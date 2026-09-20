@@ -12,7 +12,6 @@ export default function AdminMenuPage() {
   const [newItem, setNewItem] = useState({
     name: "",
     price: "",
-    stock: "",
     spice_level: "",
     is_available: true,
   });
@@ -26,7 +25,7 @@ export default function AdminMenuPage() {
     setLoading(true);
     const { data, error } = await supabase
       .from("menu_items")
-      .select("id, name, price, stock, spice_level, is_available")
+      .select("id, name, price, spice_level, is_available")
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -49,7 +48,6 @@ export default function AdminMenuPage() {
     const { error } = await supabase.from("menu_items").insert({
       name: newItem.name,
       price: parseFloat(newItem.price),
-      stock: parseInt(newItem.stock) || 0,
       spice_level: newItem.spice_level || null,
       is_available: newItem.is_available,
     });
@@ -59,13 +57,7 @@ export default function AdminMenuPage() {
       return;
     }
 
-    setNewItem({
-      name: "",
-      price: "",
-      stock: "",
-      spice_level: "",
-      is_available: true,
-    });
+    setNewItem({ name: "", price: "", spice_level: "", is_available: true });
     fetchItems();
   }
 
@@ -87,7 +79,6 @@ export default function AdminMenuPage() {
       .update({
         name: editDraft.name,
         price: parseFloat(editDraft.price),
-        stock: parseInt(editDraft.stock) || 0,
         spice_level: editDraft.spice_level || null,
         is_available: editDraft.is_available,
       })
@@ -129,7 +120,7 @@ export default function AdminMenuPage() {
       {/* ฟอร์มเพิ่มเมนูใหม่ */}
       <form
         onSubmit={handleAdd}
-        className="mb-6 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 shadow-sm sm:grid-cols-6"
+        className="mb-6 grid grid-cols-1 gap-3 rounded-lg border bg-white p-4 shadow-sm sm:grid-cols-5"
       >
         <input
           type="text"
@@ -147,13 +138,6 @@ export default function AdminMenuPage() {
           onChange={(e) => setNewItem({ ...newItem, price: e.target.value })}
           className="rounded border px-3 py-2 text-sm"
           required
-        />
-        <input
-          type="number"
-          placeholder="สต๊อก"
-          value={newItem.stock}
-          onChange={(e) => setNewItem({ ...newItem, stock: e.target.value })}
-          className="rounded border px-3 py-2 text-sm"
         />
         <input
           type="text"
@@ -176,7 +160,7 @@ export default function AdminMenuPage() {
         </label>
         <button
           type="submit"
-          className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 sm:col-span-6"
+          className="rounded bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700 sm:col-span-5"
         >
           + เพิ่มเมนู
         </button>
@@ -191,7 +175,6 @@ export default function AdminMenuPage() {
             <tr>
               <th className="px-3 py-2">ชื่อเมนู</th>
               <th className="px-3 py-2">ราคา</th>
-              <th className="px-3 py-2">สต๊อก</th>
               <th className="px-3 py-2">ความเผ็ด</th>
               <th className="px-3 py-2">สถานะ</th>
               <th className="px-3 py-2">จัดการ</th>
@@ -200,7 +183,6 @@ export default function AdminMenuPage() {
           <tbody>
             {items.map((item) => {
               const isEditing = editingId === item.id;
-              const isLowStock = item.stock <= 5;
               return (
                 <tr key={item.id} className="border-t">
                   {/* ชื่อเมนู */}
@@ -233,29 +215,6 @@ export default function AdminMenuPage() {
                       />
                     ) : (
                       `฿${item.price}`
-                    )}
-                  </td>
-
-                  {/* สต๊อก */}
-                  <td className="px-3 py-2">
-                    {isEditing ? (
-                      <input
-                        type="number"
-                        value={editDraft.stock}
-                        onChange={(e) =>
-                          setEditDraft({ ...editDraft, stock: e.target.value })
-                        }
-                        className="w-20 rounded border px-2 py-1"
-                      />
-                    ) : (
-                      <span
-                        className={
-                          isLowStock ? "font-semibold text-red-600" : ""
-                        }
-                      >
-                        {item.stock}
-                        {isLowStock && " ⚠️"}
-                      </span>
                     )}
                   </td>
 
