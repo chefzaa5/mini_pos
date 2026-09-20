@@ -4,6 +4,9 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { supabase } from "@/lib/supabaseClient";
 
+// เกณฑ์เตือนภัยสต๊อกใกล้หมด (เหมือนหน้า /sell)
+const LOW_STOCK_THRESHOLD = 5;
+
 // ต้องห่อด้วย Suspense เพราะใช้ useSearchParams (ข้อกำหนดของ Next.js App Router)
 export default function OrderPage() {
   return (
@@ -32,39 +35,51 @@ function OrderForm() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // โหลดเฉพาะเมนูที่เปิดขาย (is_available = true) มาใส่ dropdown
-  useEffect(() => {
-    async function fetchMenu() {
-      const { data, error } = await supabase
-        .from("menu_items")
-        .select("id, name, price")
-        .eq("is_available", true)
-        .order("name", { ascending: true });
+  // โหลดเฉพาะเมนูที่เปิดขาย (is_available = true) พร้อมจำนวนสต๊อก
+  async function fetchMenu() {
+    const { data, error } = await supabase
+      .from("menu_items")
+      .select("id, name, price, stock")
+      .eq("is_available", true)
+      .order("name", { ascending: true });
 
-      if (error) {
-        setErrorMsg(error.message);
-        return;
-      }
-      setMenuItems(data);
-
-      // ถ้ามี menu id ส่งมาจาก URL และเมนูนั้นยังเปิดขายอยู่ ให้เลือกอันนั้นก่อน
-      // ไม่งั้น fallback ไปเลือกรายการแรกในลิสต์
-      if (menuIdFromUrl && data.some((m) => m.id === menuIdFromUrl)) {
-        setSelectedMenuId(menuIdFromUrl);
-      } else if (data.length > 0) {
-        setSelectedMenuId(data[0].id);
-      }
+    if (error) {
+      setErrorMsg(error.message);
+      return;
     }
+    setMenuItems(data);
+
+    // ถ้ามี menu id ส่งมาจาก URL และเมนูนั้นยังเปิดขายอยู่ ให้เลือกอันนั้นก่อน
+    if (menuIdFromUrl && data.some((m) => m.id === menuIdFromUrl)) {
+      setSelectedMenuId(menuIdFromUrl);
+    } else if (data.length > 0 && !selectedMenuId) {
+      setSelectedMenuId(data[0].id);
+    }
+  }
+
+  useEffect(() => {
     fetchMenu();
   }, [menuIdFromUrl]);
 
-  // หาราคาของเมนูที่เลือกอยู่ เพื่อคำนวณยอดรวม
   const selectedMenu = menuItems.find((m) => m.id === selectedMenuId);
   const totalPrice = selectedMenu ? selectedMenu.price * quantity : 0;
 
   function resetForm() {
     setForm({ customer_name: "", phone: "", address: "", note: "" });
     setQuantity(1);
+  }
+
+  // ส่งแจ้งเตือนผ่าน API route ฝั่ง server — ไม่ให้กระทบ flow การสั่งซื้อถ้า Telegram ล่ม
+  async function sendTelegramNotifications(messages) {
+    try {
+      await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+    } catch (err) {
+      console.error("ส่งแจ้งเตือน Telegram ไม่สำเร็จ:", err);
+    }
   }
 
   async function handleSubmit(e) {
@@ -81,6 +96,14 @@ function OrderForm() {
       quantity < 1
     ) {
       setErrorMsg("กรุณากรอกข้อมูลให้ครบ: ชื่อ, เบอร์โทร, ที่อยู่ และเมนูที่ต้องการ");
+      return;
+    }
+
+    // ตรวจสอบสต๊อกก่อนบันทึก
+    if (selectedMenu.stock < quantity) {
+      setErrorMsg(
+        `สต๊อกไม่พอ! คงเหลือ ${selectedMenu.stock} ชิ้น แต่สั่ง ${quantity} ชิ้น`
+      );
       return;
     }
 
@@ -120,8 +143,48 @@ function OrderForm() {
       return;
     }
 
+    // ขั้นที่ 3: ตัดสต๊อก
+    const newStock = selectedMenu.stock - quantity;
+    const { error: stockError } = await supabase
+      .from("menu_items")
+      .update({ stock: newStock })
+      .eq("id", selectedMenuId);
+
+    if (stockError) {
+      setErrorMsg("บันทึกออเดอร์แล้ว แต่ตัดสต๊อกไม่สำเร็จ: " + stockError.message);
+      setSubmitting(false);
+      return;
+    }
+
+    // ขั้นที่ 4: แจ้งเตือน Telegram
+    const now = new Date().toLocaleString("th-TH", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    const messages = [
+      `🛍️ <b>มีรายการขายใหม่!</b>\n\n` +
+        `• สินค้า: ${selectedMenu.name}\n` +
+        `• จำนวน: ${quantity} ชิ้น\n` +
+        `• ราคารวม: ${totalPrice.toFixed(2)} บาท\n` +
+        `• สต๊อกคงเหลือปัจจุบัน: ${newStock} ชิ้น\n` +
+        `• เวลา: ${now}`,
+    ];
+
+    if (newStock <= LOW_STOCK_THRESHOLD) {
+      messages.push(
+        `🚨 <b>[เตือนภัย] สต๊อกสินค้าใกล้หมด!</b>\n\n` +
+          `• สินค้า: ${selectedMenu.name}\n` +
+          `• คงเหลือเพียง: ${newStock} ชิ้น\n\n` +
+          `⚠️ กรุณาเติมสต๊อกสินค้าด่วน!`
+      );
+    }
+
+    await sendTelegramNotifications(messages);
+
     setSuccessMsg("สั่งซื้อสำเร็จ! ทางร้านจะติดต่อกลับเพื่อยืนยันออเดอร์");
     resetForm();
+    fetchMenu(); // โหลดสต๊อกใหม่มาแสดง
     setSubmitting(false);
   }
 
@@ -155,7 +218,7 @@ function OrderForm() {
         >
           {menuItems.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name} - ฿{item.price}
+              {item.name} - ฿{item.price} (เหลือ {item.stock})
             </option>
           ))}
         </select>
