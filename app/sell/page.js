@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/lib/supabaseClient";
 
+// เกณฑ์เตือนภัยสต๊อกใกล้หมด
+const LOW_STOCK_THRESHOLD = 5;
+
 export default function SellPage() {
   const [menuItems, setMenuItems] = useState([]);
   const [selectedMenuId, setSelectedMenuId] = useState("");
@@ -19,26 +22,26 @@ export default function SellPage() {
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
 
-  // โหลดเฉพาะเมนูที่เปิดขาย (is_available = true) มาใส่ dropdown
-  useEffect(() => {
-    async function fetchMenu() {
-      const { data, error } = await supabase
-        .from("menu_items")
-        .select("id, name, price")
-        .eq("is_available", true)
-        .order("name", { ascending: true });
+  // โหลดเมนูที่เปิดขาย พร้อมจำนวนสต๊อกคงเหลือ
+  async function fetchMenu() {
+    const { data, error } = await supabase
+      .from("menu_items")
+      .select("id, name, price, stock")
+      .eq("is_available", true)
+      .order("name", { ascending: true });
 
-      if (error) {
-        setErrorMsg(error.message);
-        return;
-      }
-      setMenuItems(data);
-      if (data.length > 0) setSelectedMenuId(data[0].id);
+    if (error) {
+      setErrorMsg(error.message);
+      return;
     }
+    setMenuItems(data);
+    if (data.length > 0 && !selectedMenuId) setSelectedMenuId(data[0].id);
+  }
+
+  useEffect(() => {
     fetchMenu();
   }, []);
 
-  // หาราคาของเมนูที่เลือกอยู่ เพื่อคำนวณยอดรวม
   const selectedMenu = menuItems.find((m) => m.id === selectedMenuId);
   const totalPrice = selectedMenu ? selectedMenu.price * quantity : 0;
 
@@ -47,12 +50,26 @@ export default function SellPage() {
     setQuantity(1);
   }
 
+  // ส่งแจ้งเตือนผ่าน API route ฝั่ง server (token ไม่หลุดมาฝั่ง browser)
+  // ห่อ try/catch ไว้ทั้งหมด — ถ้า Telegram ล่ม การขายต้องไม่พัง
+  async function sendTelegramNotifications(messages) {
+    try {
+      await fetch("/api/notify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages }),
+      });
+    } catch (err) {
+      // แค่ log ไว้ ไม่ throw ต่อ เพื่อไม่ให้กระทบ flow การขาย
+      console.error("ส่งแจ้งเตือน Telegram ไม่สำเร็จ:", err);
+    }
+  }
+
   async function handleSell(e) {
     e.preventDefault();
     setErrorMsg("");
     setSuccessMsg("");
 
-    // ตรวจสอบข้อมูลจำเป็นให้ครบก่อนบันทึก
     if (
       !selectedMenuId ||
       !form.customer_name ||
@@ -64,9 +81,17 @@ export default function SellPage() {
       return;
     }
 
+    // ตรวจสอบว่าสต๊อกพอหรือไม่ ก่อนบันทึกอะไรทั้งสิ้น
+    if (selectedMenu.stock < quantity) {
+      setErrorMsg(
+        `สต๊อกไม่พอ! คงเหลือ ${selectedMenu.stock} ชิ้น แต่สั่ง ${quantity} ชิ้น`
+      );
+      return;
+    }
+
     setSubmitting(true);
 
-    // ขั้นที่ 1: สร้างออเดอร์ในตาราง orders ก่อน แล้วรับ id กลับมา
+    // ขั้นที่ 1: สร้างออเดอร์
     const { data: orderData, error: orderError } = await supabase
       .from("orders")
       .insert({
@@ -86,7 +111,7 @@ export default function SellPage() {
       return;
     }
 
-    // ขั้นที่ 2: บันทึกรายการสินค้าลง order_items โดยผูกกับ order_id ที่เพิ่งได้
+    // ขั้นที่ 2: บันทึกรายการสินค้า
     const { error: itemError } = await supabase.from("order_items").insert({
       order_id: orderData.id,
       menu_item_id: selectedMenuId,
@@ -100,8 +125,49 @@ export default function SellPage() {
       return;
     }
 
+    // ขั้นที่ 3: ตัดสต๊อก
+    const newStock = selectedMenu.stock - quantity;
+    const { error: stockError } = await supabase
+      .from("menu_items")
+      .update({ stock: newStock })
+      .eq("id", selectedMenuId);
+
+    if (stockError) {
+      setErrorMsg("บันทึกออเดอร์แล้ว แต่ตัดสต๊อกไม่สำเร็จ: " + stockError.message);
+      setSubmitting(false);
+      return;
+    }
+
+    // ขั้นที่ 4: แจ้งเตือน Telegram (ทำหลังตัดสต๊อกสำเร็จ)
+    const now = new Date().toLocaleString("th-TH", {
+      dateStyle: "medium",
+      timeStyle: "short",
+    });
+
+    const messages = [
+      `🛍️ <b>มีรายการขายใหม่!</b>\n\n` +
+        `• สินค้า: ${selectedMenu.name}\n` +
+        `• จำนวน: ${quantity} ชิ้น\n` +
+        `• ราคารวม: ${totalPrice.toFixed(2)} บาท\n` +
+        `• สต๊อกคงเหลือปัจจุบัน: ${newStock} ชิ้น\n` +
+        `• เวลา: ${now}`,
+    ];
+
+    // เพิ่มข้อความเตือนภัยอีก 1 ข้อความ ถ้าสต๊อกเหลือน้อยกว่าหรือเท่ากับเกณฑ์
+    if (newStock <= LOW_STOCK_THRESHOLD) {
+      messages.push(
+        `🚨 <b>[เตือนภัย] สต๊อกสินค้าใกล้หมด!</b>\n\n` +
+          `• สินค้า: ${selectedMenu.name}\n` +
+          `• คงเหลือเพียง: ${newStock} ชิ้น\n\n` +
+          `⚠️ กรุณาเติมสต๊อกสินค้าด่วน!`
+      );
+    }
+
+    await sendTelegramNotifications(messages);
+
     setSuccessMsg("บันทึกการขายสำเร็จ!");
     resetForm();
+    fetchMenu(); // โหลดสต๊อกใหม่มาแสดง
     setSubmitting(false);
   }
 
@@ -126,7 +192,6 @@ export default function SellPage() {
         onSubmit={handleSell}
         className="flex flex-col gap-3 rounded-lg border bg-white p-4 shadow-sm"
       >
-        {/* เลือกเมนู */}
         <label className="text-sm font-medium">เมนู</label>
         <select
           value={selectedMenuId}
@@ -135,12 +200,11 @@ export default function SellPage() {
         >
           {menuItems.map((item) => (
             <option key={item.id} value={item.id}>
-              {item.name} - ฿{item.price}
+              {item.name} - ฿{item.price} (เหลือ {item.stock})
             </option>
           ))}
         </select>
 
-        {/* จำนวน */}
         <label className="text-sm font-medium">จำนวน</label>
         <input
           type="number"
@@ -150,14 +214,11 @@ export default function SellPage() {
           className="rounded border px-3 py-2 text-sm"
         />
 
-        {/* ข้อมูลลูกค้า */}
         <label className="text-sm font-medium">ชื่อลูกค้า</label>
         <input
           type="text"
           value={form.customer_name}
-          onChange={(e) =>
-            setForm({ ...form, customer_name: e.target.value })
-          }
+          onChange={(e) => setForm({ ...form, customer_name: e.target.value })}
           className="rounded border px-3 py-2 text-sm"
           placeholder="ชื่อ-นามสกุล"
         />
@@ -189,7 +250,6 @@ export default function SellPage() {
           placeholder="เช่น ไม่ใส่ผัก, เผ็ดน้อย"
         />
 
-        {/* ยอดรวม */}
         <div className="mt-2 flex items-center justify-between rounded bg-orange-50 px-3 py-2">
           <span className="text-sm font-medium">ยอดรวม</span>
           <span className="text-lg font-bold text-orange-700">
