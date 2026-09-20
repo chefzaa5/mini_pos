@@ -4,6 +4,10 @@ export async function POST(request) {
   const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
 
   if (!TELEGRAM_BOT_TOKEN || !TELEGRAM_CHAT_ID) {
+    console.error("[notify] ไม่ได้ตั้งค่า env vars:", {
+      hasToken: !!TELEGRAM_BOT_TOKEN,
+      hasChatId: !!TELEGRAM_CHAT_ID,
+    });
     return Response.json(
       { ok: false, error: "ยังไม่ได้ตั้งค่า Telegram env vars" },
       { status: 500 }
@@ -12,10 +16,10 @@ export async function POST(request) {
 
   try {
     const { messages } = await request.json();
+    const results = [];
 
-    // รับได้หลายข้อความในครั้งเดียว (เช่น แจ้งขายใหม่ + เตือนสต๊อกใกล้หมด)
     for (const messageText of messages) {
-      await fetch(
+      const res = await fetch(
         `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`,
         {
           method: "POST",
@@ -27,10 +31,24 @@ export async function POST(request) {
           }),
         }
       );
+
+      const data = await res.json();
+      results.push(data);
+
+      // สำคัญ: log ผลลัพธ์จริงจาก Telegram ไว้เสมอ ไม่ว่าสำเร็จหรือพัง
+      // เข้าไปดูได้ที่ Vercel > โปรเจกต์ > Logs
+      if (!data.ok) {
+        console.error("[notify] Telegram ปฏิเสธข้อความ:", data);
+      } else {
+        console.log("[notify] ส่งสำเร็จ:", data.result?.message_id);
+      }
     }
 
-    return Response.json({ ok: true });
+    // ถ้ามีข้อความไหนที่ Telegram ปฏิเสธ ให้ตอบ error กลับไปตามจริง
+    const allOk = results.every((r) => r.ok);
+    return Response.json({ ok: allOk, results });
   } catch (error) {
+    console.error("[notify] เกิด exception:", error.message);
     return Response.json({ ok: false, error: error.message }, { status: 500 });
   }
 }
