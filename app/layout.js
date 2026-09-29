@@ -19,8 +19,11 @@ export default function RootLayout({ children }) {
               <Link href="/" className="hover:text-orange-600">
                 เมนู
               </Link>
-              <Link href="/order" className="hover:text-orange-600">
-                สั่งอาหาร
+              <Link href="/generate-qr" className="hover:text-orange-600">
+                เปิดโต๊ะ
+              </Link>
+              <Link href="/kitchen" className="hover:text-orange-600">
+                จอครัว
               </Link>
               <Link href="/sell" className="hover:text-orange-600">
                 ขายหน้าร้าน
