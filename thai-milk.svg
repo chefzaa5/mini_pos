@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 480" width="480" height="480" role="img">
+<defs>
+<radialGradient id="bg" cx="50%" cy="38%" r="78%"><stop offset="0" stop-color="#f7ede0"/><stop offset="1" stop-color="#e9d2b4"/></radialGradient>
+<filter id="blur" x="-30%" y="-30%" width="160%" height="160%"><feGaussianBlur stdDeviation="7"/></filter>
+<clipPath id="cup"><path d="M150 120 L330 120 L305 410 Q303 424 289 424 L191 424 Q177 424 175 410 Z"/></clipPath>
+<linearGradient id="liq" gradientUnits="userSpaceOnUse" x1="0" y1="140" x2="0" y2="424"><stop offset="0" stop-color="#f08a1e"/><stop offset="0.45" stop-color="#e5701a"/><stop offset="1" stop-color="#b94a12"/></linearGradient><linearGradient id="foam" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffffff"/><stop offset="1" stop-color="#f6efe6"/></linearGradient>
+</defs>
+<rect width="480" height="480" fill="url(#bg)"/>
+
+<ellipse cx="240" cy="438" rx="105" ry="12" fill="#000" fill-opacity=".16" filter="url(#blur)"/>
+<g clip-path="url(#cup)">
+<rect x="120" y="140" width="240" height="300" fill="url(#liq)"/>
+<rect x="190" y="190" width="32" height="32" rx="7" fill="#fff" fill-opacity=".34" stroke="#fff" stroke-opacity=".7" stroke-width="2" transform="rotate(8 206.0 206.0)"/><rect x="252" y="200" width="30" height="30" rx="7" fill="#fff" fill-opacity=".34" stroke="#fff" stroke-opacity=".7" stroke-width="2" transform="rotate(-10 267.0 215.0)"/><rect x="214" y="250" width="30" height="30" rx="7" fill="#fff" fill-opacity=".34" stroke="#fff" stroke-opacity=".7" stroke-width="2" transform="rotate(14 229.0 265.0)"/><path d="M120 138 Q165 124 212 140 T305 136 T360 140 L360 174 L120 174 Z" fill="url(#foam)"/>
+</g>
+<path d="M150 120 L330 120 L305 410 Q303 424 289 424 L191 424 Q177 424 175 410 Z" fill="#fff" fill-opacity=".14" stroke="#fff" stroke-opacity=".75" stroke-width="3"/>
+<path d="M163 140 L178 400" stroke="#fff" stroke-opacity=".5" stroke-width="9" stroke-linecap="round"/>
+<line x1="292" y1="30" x2="238" y2="372" stroke="#fbe9d4" stroke-width="12" stroke-linecap="round" stroke-opacity=".92"/>
+<line x1="292" y1="30" x2="238" y2="372" stroke="#000" stroke-opacity=".08" stroke-width="2" stroke-linecap="round"/>
+<path d="M156 108 Q240 52 324 108 Z" fill="#fff" fill-opacity=".5" stroke="#e1e6e1" stroke-width="2"/>
+<rect x="142" y="104" width="196" height="18" rx="9" fill="#f6f8f6" stroke="#d3d9d3" stroke-width="2"/>
+
+
+</svg>
