@@ -1,42 +1,31 @@
-import Link from "next/link";
+import { Noto_Sans_Thai, Noto_Serif_Thai } from "next/font/google";
+import Nav from "./Nav";
 import "./globals.css";
 
+const sans = Noto_Sans_Thai({
+  subsets: ["thai", "latin"],
+  variable: "--font-sans",
+  display: "swap",
+});
+const serif = Noto_Serif_Thai({
+  subsets: ["thai", "latin"],
+  weight: ["600", "700"],
+  variable: "--font-serif",
+  display: "swap",
+});
+
 export const metadata = {
-  title: "KELVIN Noodles",
-  description: "สั่งบะหมี่ออนไลน์ง่าย ๆ ผ่าน KELVIN",
+  title: "KELVIN",
+  description: "ร้านชาชงสด สั่งง่ายผ่าน QR ที่โต๊ะ",
 };
 
 export default function RootLayout({ children }) {
   return (
     <html lang="th">
-      <body className="min-h-screen bg-gray-50 text-gray-900">
-        <header className="border-b bg-white shadow-sm">
-          <nav className="mx-auto flex max-w-4xl items-center justify-between px-4 py-3">
-            <Link href="/" className="text-lg font-bold text-orange-600">
-              KELVIN Noodles
-            </Link>
-            <div className="flex gap-4 text-sm font-medium">
-              <Link href="/" className="hover:text-orange-600">
-                เมนู
-              </Link>
-              <Link href="/generate-qr" className="hover:text-orange-600">
-                เปิดโต๊ะ
-              </Link>
-              <Link href="/kitchen" className="hover:text-orange-600">
-                จอครัว
-              </Link>
-              <Link href="/sell" className="hover:text-orange-600">
-                ขายหน้าร้าน
-              </Link>
-              <Link href="/history" className="hover:text-orange-600">
-                ประวัติ
-              </Link>
-              <Link href="/admin" className="hover:text-orange-600">
-                จัดการเมนู
-              </Link>
-            </div>
-          </nav>
-        </header>
+      <body
+        className={`${sans.variable} ${serif.variable} min-h-screen bg-tea-mist font-sans text-leaf-900`}
+      >
+        <Nav />
         <main className="mx-auto max-w-4xl px-4 py-6">{children}</main>
       </body>
     </html>
